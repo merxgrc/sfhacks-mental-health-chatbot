@@ -3,6 +3,9 @@ from flask_cors import CORS
 import google.generativeai as genai
 import os
 
+from google import genai
+from google.genai import types
+
 app = Flask(__name__)
 CORS(app)
 
@@ -11,8 +14,10 @@ api_key = os.environ.get("GOOGLE_API_KEY")
 
 # Configure Gemini client
 if api_key:
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-2.0-flash') 
+    # genai.configure(api_key=api_key)
+    # model = genai.GenerativeModel('gemini-2.0-flash')
+    client = genai.Client(api_key=api_key)
+    model = client.chats.create(model="gemini-2.0-flash")
 else:
     print("Error: GOOGLE_API_KEY environment variable not set.")
     model = None
@@ -33,7 +38,17 @@ def chat():
         return jsonify({'error': 'No message provided'}), 400
 
     try:
-        response = model.generate_content(user_message)
+        # response = model.generate_content(user_message)
+        # response = model.send_message_stream(user_message)
+        response = model.send_message(user_message)
+
+        # response = client.models.generate_content(
+        #     model="gemini-2.0-flash",
+        #     config=types.GenerateContentConfig(
+        #         system_instruction="You are a cat. Your name is Neko."),
+        #     contents=user_message
+        # )
+
         return jsonify({'response': response.text})
     except Exception as e:
         return jsonify({'error': f'Error generating response: {str(e)}'}), 500
