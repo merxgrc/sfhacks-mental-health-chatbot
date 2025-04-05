@@ -1,26 +1,32 @@
 annotated-types==0.7.0
-anyio==4.4.0 # Adjusted slightly downwards for potentially wider compatibility
-cachetools==5.3.3 # Adjusted slightly downwards
-certifi>=2024.7.4 # Use a recent version, allow updates
-charset-normalizer==3.3.2 # Adjusted slightly downwards
-google-auth==2.29.0 # Adjusted slightly downwards
-google-generativeai==0.7.0 # Corrected name and version
+anyio==4.9.0
+cachetools==5.5.2
+certifi==2025.1.31
+charset-normalizer==3.4.1
+google-auth==2.38.0
+google-genai==1.9.0
+google-generativeai==0.7.0
 h11==0.14.0
-httpcore==1.0.5 # Adjusted slightly downwards
-httpx==0.27.0 # Adjusted slightly downwards
-idna==3.7 # Adjusted slightly downwards
-protobuf>=4.25.3,<5.0.0dev # Often a dependency, good to specify range
-pyasn1==0.6.0 # Adjusted slightly downwards
-pyasn1_modules==0.4.0 # Adjusted slightly downwards
-pydantic==2.7.4 # Adjusted slightly downwards
-pydantic_core==2.18.4 # Adjusted slightly downwards
+httpcore==1.0.7
+httpx==0.28.1
+idna==3.10
+pyasn1==0.6.1
+pyasn1_modules==0.4.2
+pydantic==2.11.2
+pydantic_core==2.33.1
 requests==2.32.3
 rsa==4.9
 sniffio==1.3.1
-typing-extensions==4.12.2 # Adjusted slightly downwards
-urllib3==2.2.2 # Adjusted slightly downwards
-Flask==3.0.3 # Adjusted slightly upwards
-Flask-Cors==4.0.1 # Adjusted slightly upwards
+typing-inspection==0.4.0
+typing_extensions==4.13.1
+urllib3==2.3.0
+websockets==15.0.1
+Flask==2.3.2
+python-dotenv==1.0.1
+python-dotenv==1.0.1 # Adjusted slightly upwards
+
+# Removed websockets as it wasn't directly indicated as needed by genai/flask/dotenv
+# Add it back if your specific code requires it: websockets==12.0
 python-dotenv==1.0.1 # Adjusted slightly upwards
 
 # Removed websockets as it wasn't directly indicated as needed by genai/flask/dotenv

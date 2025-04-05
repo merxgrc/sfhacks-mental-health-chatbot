@@ -78,17 +78,17 @@ def create_chat(chat_id:str, system_prompt: str, model_name: str):
 def get_response(chat_session, prompt: str) -> str:
     response = ""
     try:
-        response = chat_session.send_message(prompt, stream=True)
-        for chunk in response:
+        response_stream = chat_session.send_message(prompt, stream=True)
+        for chunk in response_stream:
             text_part = getattr(chunk, "text", "")
             print(text_part, end="", flush=True)
-            full_response += text_part
+            response += text_part
             time.sleep(0.05)
         print()
     except Exception as e:
         print(f"\n<System: Error during API call: {e}>")
-        full_response = "SYSTEM_ERROR"
-    return full_response.strip()
+        response = "SYSTEM_ERROR"
+    return response.strip()
 
 active_chats = {}
 CURRENT_USER_ID = "user_main"
@@ -124,7 +124,7 @@ while True:
             specialist_prompt = SPECIALIST_PROMPTS.get(issue, SPECIALIST_PROMPTS["default"])
             specialist_chat_id = f"{CURRENT_USER_ID}_{issue}"
 
-            current_chat_session = create_chat(specialist_chat_id, specialist_prompt, MODEL_NAME)
+            current_chat_session = create_chat(specialist_chat_id, specialist_prompt, MODEL)
             current_chat_id = specialist_chat_id
 
             print("<System: Now talking to the specialist>\n")
