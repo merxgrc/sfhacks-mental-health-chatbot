@@ -65,6 +65,7 @@ SPECIALIST_PROMPTS = {
 # --- Active Session Storage ---
 active_chats = {}
 CURRENT_USER_ID = "web_user"
+current_chat_id = None
 
 def create_chat(chat_id: str, system_prompt: str, model_name: str):
     if chat_id in active_chats:
@@ -83,37 +84,44 @@ def create_chat(chat_id: str, system_prompt: str, model_name: str):
 def index():
     return "✅ Mental Health Chatbot backend is running!"
 
+
 @app.route("/api/chat", methods=["POST"])
 def chat():
+    global active_chats, current_chat_id
+
     data = request.get_json()
     user_message = data.get("message", "").strip()
-    if not user_message:
-        return jsonify({'error': 'No message provided'}), 400
-
+    print(f"<User Message> {user_message}")
+    
     try:
-        # Step 1: Talk to Nurse Gemini first
-        nurse_chat_id = f"{CURRENT_USER_ID}_nurse"
-        current_chat = create_chat(nurse_chat_id, NURSE_PROMPT, MODEL)
+        if not active_chats:
+            nurse_chat_id = f"{CURRENT_USER_ID}_nurse"
+            current_chat_id = nurse_chat_id
+            create_chat(nurse_chat_id, NURSE_PROMPT, MODEL)
+
+        current_chat = active_chats[current_chat_id]
         response = current_chat.send_message(user_message).text.strip()
+        print(f"[{current_chat_id.upper()} RESPONSE] {response}")
 
-        print(f"[NURSE RESPONSE] {response}")
-
-        # Step 2: Did Nurse Gemini say to hand over?
-        if response.startswith("HANDOVER:"):
+        if current_chat_id.endswith("_nurse") and response.startswith("HANDOVER:"):
             issue = re.sub(r"HANDOVER:", "", response).strip().lower()
+
             specialist_prompt = SPECIALIST_PROMPTS.get(issue, SPECIALIST_PROMPTS["default"])
             specialist_chat_id = f"{CURRENT_USER_ID}_{issue}"
+
             current_chat = create_chat(specialist_chat_id, specialist_prompt, MODEL)
 
-            # Send intro message to new specialist bot
-            handover_intro = f"The user was transferred for {issue}."
-            response = current_chat.send_message(handover_intro).text.strip()
+            current_chat_id = specialist_chat_id
+
+            handover_message = f"The user was transferred for {issue}."
+            response = current_chat.send_message(handover_message).text.strip()
 
         return jsonify({'response': response})
 
     except Exception as e:
         print(f"<Error> {e}")
         return jsonify({'error': f'Server error: {str(e)}'}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True)
