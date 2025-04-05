@@ -14,8 +14,11 @@ This project is a mental health chatbot built using the Gemini API.
    cd sfhacks-mental-health-chatbot
 
 **Backend:**
+
 python -m venv venv
+
 source venv/bin/activate  # On macOS and Linux
+
 .\venv\Scripts\activate  # On Windows
 
 **Install requirements**
