@@ -1,0 +1,21 @@
+.title {
+    margin-top: 250px;
+    color: black;
+    text-align: center;
+    font-size: 100px;
+}
+
+.agent-display {
+    margin-top: 300px;
+}
+.agent-display h1 {
+    border: solid 1px black;
+    border-radius: 30px;
+    padding: 30px;
+    margin: auto;
+    font-size: 50px;
+    font-family: Georgia, serif;
+    text-align: center;
+    width: 30%;
+}
+
