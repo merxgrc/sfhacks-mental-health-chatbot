@@ -22,7 +22,7 @@ MODEL = "gemini-2.0-flash"
 
 # --- Flask Setup ---
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:5174"}})
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # --- Prompts ---
 NURSE_PROMPT = """
@@ -101,13 +101,17 @@ def create_chat(chat_id: str, system_prompt: str, model_name: str):
 def index():
     return "✅ Mental Health Chatbot backend is running!"
 
+# Global variable to cache the last successful nurse introduction
+last_introduction = None
+
 @app.route("/api/init", methods=["GET"])
 def init_chat():
     global active_chats, current_chat_id, last_introduction
     nurse_chat_id = f"{CURRENT_USER_ID}_nurse"
     try:
-        # Remove any existing nurse session so a fresh introduction is generated.
-        active_chats.pop(nurse_chat_id, None)
+        # Always remove any existing nurse session so a fresh introduction is generated.
+        if nurse_chat_id in active_chats:
+            del active_chats[nurse_chat_id]
         current_chat_id = nurse_chat_id
         nurse_chat = create_chat(nurse_chat_id, NURSE_PROMPT, MODEL)
 
@@ -117,9 +121,14 @@ def init_chat():
         return jsonify({"intro": intro_message})
     except Exception as e:
         print(f"Error initializing chat: {e}")
-        # Always fallback to the last introduction if available
-        fallback = last_introduction if last_introduction is not None else "Nurse Gemini is ready."
-        return jsonify({"intro": fallback})
+        # If it's a rate-limit error and we have a previous introduction, return that
+        if "429" in str(e) and last_introduction:
+            return jsonify({"intro": last_introduction})
+        else:
+            # Otherwise, return a fallback introduction
+            fallback = last_introduction if last_introduction is not None else "Nurse Gemini is ready."
+            return jsonify({"intro": fallback})
+
 
 
 @app.route("/api/chat", methods=["POST"])
