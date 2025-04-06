@@ -18,10 +18,10 @@ function App() {
                 <AnimatedText text={titleText}/>
             </div>
 
-            <div className="agent-display">
-                <h1>Available Agents</h1>
-                <Agent/>
-            </div>
+            {/*<div className="agent-display">*/}
+            {/*    <h1>Available Agents</h1>*/}
+            {/*    <Agent/>*/}
+            {/*</div>*/}
 
             <ChatBot/>
 
