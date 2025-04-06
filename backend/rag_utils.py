@@ -162,7 +162,11 @@ Here are some examples of professional conversations to use as guidance:
 {examples_text}
 
 Remember to use these examples as guidance while maintaining your own conversational style.
+If you haven't introduced yourself yet, make sure to do so.
+Keep the introduction short and friendly. Let them know which bot they are talking to.
 Talk to them as they were in the same room with you, and make sure to keep the conversation flowing naturally.
+Don't be too formal, but also don't be too casual.
+Be 50/50 between the length of the conversations; having some longer and some shorter is okay, but try to keep it balanced.
 The user's current message is: {user_message}
 """
     return augmented_prompt

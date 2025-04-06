@@ -27,3 +27,5 @@ google-generativeai==0.8.4
 python-dotenv==1.0.0
 datasets==2.19.1
 numpy==1.26.4
+pymongo==4.6.2
+pymongo[srv]==4.6.2

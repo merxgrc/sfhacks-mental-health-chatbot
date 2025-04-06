@@ -101,6 +101,26 @@ def create_chat(chat_id: str, system_prompt: str, model_name: str):
 def index():
     return "✅ Mental Health Chatbot backend is running!"
 
+@app.route("/api/init", methods=["GET"])
+def init_chat():
+    global active_chats, current_chat_id, last_introduction
+    nurse_chat_id = f"{CURRENT_USER_ID}_nurse"
+    try:
+        # Remove any existing nurse session so a fresh introduction is generated.
+        active_chats.pop(nurse_chat_id, None)
+        current_chat_id = nurse_chat_id
+        nurse_chat = create_chat(nurse_chat_id, NURSE_PROMPT, MODEL)
+
+        intro_message = nurse_chat.send_message("Introduce yourself").text.strip()
+        print(f"[NURSE INTRODUCTION] {intro_message}")
+        last_introduction = intro_message  # Cache the new introduction
+        return jsonify({"intro": intro_message})
+    except Exception as e:
+        print(f"Error initializing chat: {e}")
+        # Always fallback to the last introduction if available
+        fallback = last_introduction if last_introduction is not None else "Nurse Gemini is ready."
+        return jsonify({"intro": fallback})
+
 
 @app.route("/api/chat", methods=["POST"])
 def chat():

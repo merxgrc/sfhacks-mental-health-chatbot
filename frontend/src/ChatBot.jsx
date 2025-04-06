@@ -80,6 +80,25 @@ function ChatBot() {
         }
     };
 
+    // Initialize the chat (nurse introduction) only once on mount
+        useEffect(() => {
+            const initChat = async () => {
+            try {
+                const response = await fetch("http://localhost:5000/api/init");
+                if (response.ok) {
+                const data = await response.json();
+                // Add the nurse's introduction to the chat log
+                setMessages([{ sender: "ai", text: data.intro }]);
+                } else {
+                console.error("Initialization failed");
+                }
+            } catch (error) {
+                console.error("Error initializing chat:", error);
+            }
+            };
+            initChat();
+        }, []);
+
     return <main className={`page ${messages.length === 0 ? "centered" : ""}`}>
         <h1 className="header">What's on your mind?</h1>
         <div className="chatbot-container" ref={containerRef}>
