@@ -1,10 +1,13 @@
+"""
+RAG utilities for mental health chatbot
+"""
 import os
-import chromadb
+import uuid
+import time
 import google.generativeai as genai
 from datasets import load_dataset
 from dotenv import load_dotenv
-import uuid
-import time
+from db_provider import get_db_provider
 
 # Load environment variables
 load_dotenv()
@@ -15,26 +18,8 @@ genai.configure(api_key=GOOGLE_API_KEY)
 # Use embedding-001 model as it has higher quota limits
 EMBEDDING_MODEL_ID = "models/embedding-001"
 
-# ChromaDB setup
-def get_chroma_client():
-    """Create and return a ChromaDB client with persistent storage"""
-    client = chromadb.PersistentClient("./chroma_db")
-    return client
-
-def get_or_create_collection(client):
-    """Get or create the collection for mental health conversations"""
-    # Check if collection exists, if not create it
-    try:
-        # Try to get the collection first
-        collection = client.get_collection("mental_health_conversations")
-        print("Using existing collection")
-    except:
-        print("Creating new collection")
-        collection = client.create_collection(
-            name="mental_health_conversations",
-            metadata={"hnsw:space": "cosine"}
-        )
-    return collection
+# Initialize the database provider
+db_provider = get_db_provider()
 
 def create_embedding(text):
     """Create embedding vector for a text using Gemini embedding model"""
@@ -52,88 +37,114 @@ def load_and_process_dataset():
     # Return the dataset
     return dataset
 
-def populate_vector_database(dataset, chroma_collection):
-    """Process dataset and store in ChromaDB with embeddings"""
+def populate_vector_database(dataset):
+    """Process dataset and store with embeddings"""
+    # Initialize the database
+    db_provider.initialize()
+    collection = db_provider.get_collection()
+
     # Check if collection already has data
-    if chroma_collection.count() > 0:
+    if db_provider.collection_count() > 0:
         print("Collection already populated, skipping...")
-        return
+        return collection
 
     print("Populating vector database...")
     # Process each conversation pair
     ids = []
-    texts = []
     embeddings = []
     metadatas = []
 
-    for idx, item in enumerate(dataset['train']):
+    # Only process a subset to start with (reduce quota usage)
+    max_samples = 100  # Limit initial dataset size
+
+    # Rate limiting counters
+    request_count = 0
+    batch_size = 7  # Number of requests before longer pause
+
+    for idx, item in enumerate(dataset['train']):  # Process limited number of samples
         user_input = item['Context']
         expert_response = item['Response']
 
-        # Create combined text for embedding
-        # combined_text = f"User: {user_input}\nExpert: {expert_response}"
-        # probably don't need the response for comparing user prompt to user_input in dataset
+        # Create combined text for embedding (only user input for efficiency)
         combined_text = user_input
 
         # Generate a unique ID
         doc_id = str(uuid.uuid4())
 
-        # Generate embedding
+        # print(f"Generating embedding {idx+1}/{max_samples}...")
+
+        # Rate limiting - short pause between each request
+        if request_count > 0:
+            time.sleep(0.5)  # Half second pause between embeddings
+
+        # Additional longer pause after each batch
+        if request_count % batch_size == 0 and request_count > 0:
+            print(f"Taking a longer pause after {batch_size} requests...")
+            time.sleep(3)  # 3 second pause after each batch
+
+        # Generate embedding with rate limiting
         embedding = create_embedding(combined_text)
+        request_count += 1
 
         # Store data for batch addition
         ids.append(doc_id)
-        texts.append(combined_text)
         embeddings.append(embedding)
         metadatas.append({
             "user_input": user_input,
             "expert_response": expert_response
         })
 
-        # Add in batches of 100 to avoid memory issues
-        if len(ids) >= 100 or idx == len(dataset['train']) - 1:
-            chroma_collection.add(
-                ids=ids,
-                embeddings=embeddings,
-                documents=texts,
-                metadatas=metadatas
-            )
+        # Add in smaller batches to reduce memory usage
+        if len(ids) >= 100 or idx == min(len(dataset['train']) - 1, max_samples - 1):
+            db_provider.add_embeddings(ids, embeddings, metadatas)
 
             # Clear the lists
             ids = []
-            texts = []
             embeddings = []
             metadatas = []
 
             print(f"Processed {idx + 1} documents")
 
-    print(f"Database populated with {chroma_collection.count()} documents")
+    print(f"Database populated with {db_provider.collection_count()} documents")
+    return collection
 
-def retrieve_relevant_conversations(query, chroma_collection, top_k=3):
+def retrieve_relevant_conversations(query, top_k=3):
     """Retrieve the most relevant conversations for a user query"""
-    # Create embedding for the query
-    query_embedding = create_embedding(query)
+    # Initialize the database if not already initialized
+    db_provider.initialize()
+    collection = db_provider.get_collection()
 
-    # Perform vector search
-    results = chroma_collection.query(
-        query_embeddings=[query_embedding],
-        n_results=top_k,
-        include=["metadatas"]
-    )
+    try:
+        # Create embedding for the query (with retry logic)
+        max_retries = 3
+        retry_count = 0
 
-    # Format the results to match the structure expected by the rest of the app
-    formatted_results = []
-    if results and 'metadatas' in results and results['metadatas']:
-        for metadata in results['metadatas'][0]:  # First (and only) query results
-            formatted_results.append({
-                "user_input": metadata["user_input"],
-                "expert_response": metadata["expert_response"]
-            })
+        while retry_count < max_retries:
+            try:
+                query_embedding = create_embedding(query)
+                break
+            except Exception as e:
+                retry_count += 1
+                if "429" in str(e) and retry_count < max_retries:
+                    # If rate limited, wait longer before retry
+                    print(f"Rate limited, pausing for {retry_count * 5} seconds...")
+                    time.sleep(retry_count * 5)
+                else:
+                    if retry_count >= max_retries:
+                        print(f"Failed after {max_retries} retries: {e}")
+                        return []
+                    raise e
 
-    return formatted_results
+        # Perform vector search using the provider
+        return db_provider.search_similar(query_embedding, top_k)
+
+    except Exception as e:
+        print(f"Error in retrieve_relevant_conversations: {e}")
+        # Return empty results if there's an error
+        return []
 
 def augment_prompt_with_rag(user_message, relevant_examples):
-    """Augment the specialist prompt with RAG context"""
+    """Augment the prompt with RAG context"""
 
     # Format the retrieved examples
     examples_text = ""
@@ -151,3 +162,30 @@ The user's current message is: {user_message}
 """
 
     return augmented_prompt
+
+def initialize_rag_database():
+    """Initialize the RAG database with the mental health dataset"""
+    try:
+        dataset = load_and_process_dataset()
+        populate_vector_database(dataset)
+        print("RAG database initialized successfully")
+        return True
+    except Exception as e:
+        print(f"Error initializing RAG database: {e}")
+        print("Continuing without RAG support...")
+        return False
+
+# Legacy functions for compatibility
+def get_chroma_client():
+    """Compatibility function - now handled by db_provider"""
+    # Initialize the DB provider
+    db_provider.initialize()
+    print("Using abstracted database provider instead of direct ChromaDB access")
+    return None
+
+def get_or_create_collection(client):
+    """Compatibility function - now handled by db_provider"""
+    # Get the collection via the provider
+    collection = db_provider.get_collection()
+    print("Using abstracted database provider instead of direct ChromaDB access")
+    return collection
