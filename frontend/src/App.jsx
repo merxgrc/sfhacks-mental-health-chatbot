@@ -1,4 +1,4 @@
-import '../styling/App.css'
+import './styling/App.css'
 import AnimatedText from "./AnimatedText.jsx";
 import Agent from "./Agent.jsx";
 import ChatBot from "./ChatBot.jsx";

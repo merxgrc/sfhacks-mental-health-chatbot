@@ -1,5 +1,5 @@
 import React from 'react';
-import '../styling/AnimatedText.css';
+import './styling/AnimatedText.css';
 
 const AnimatedText = ({ text }) => {
     return (
