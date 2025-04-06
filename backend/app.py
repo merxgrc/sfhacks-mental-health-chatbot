@@ -5,10 +5,7 @@ import re
 from dotenv import load_dotenv
 import google.generativeai as genai
 from rag_utils import (
-    get_chroma_client,
-    get_or_create_collection,
-    load_and_process_dataset,
-    populate_vector_database,
+    initialize_rag_database,
     retrieve_relevant_conversations,
     augment_prompt_with_rag
 )
@@ -23,23 +20,9 @@ if not api_key:
 genai.configure(api_key=api_key)
 MODEL = "gemini-2.0-flash"
 
-# --- ChromaDB Setup ---
-chroma_client = get_chroma_client()
-chroma_collection = get_or_create_collection(chroma_client)
-
 # --- Flask Setup ---
 app = Flask(__name__)
 CORS(app)
-
-# --- Initialize RAG Database ---
-def initialize_rag_database():
-    try:
-        dataset = load_and_process_dataset()
-        populate_vector_database(dataset, chroma_collection)
-        print("RAG database initialized successfully")
-    except Exception as e:
-        print(f"Error initializing RAG database: {e}")
-        print("Continuing without RAG support...")
 
 # --- Prompts ---
 NURSE_PROMPT = """
@@ -140,14 +123,15 @@ def chat():
 
         # Step 2.1: RAG Enhancement - Get relevant conversations
         try:
-            relevant_examples = retrieve_relevant_conversations(user_message, chroma_collection)
+            relevant_examples = retrieve_relevant_conversations(user_message)
+            print("This happens")
             if relevant_examples:
                 # Augment prompt with relevant examples
                 augmented_prompt = augment_prompt_with_rag(
                     user_message,
                     relevant_examples
                 )
-                print(augmented_prompt)
+                print(augmented_prompt) 
                 # Use the augmented prompt instead
                 augmented_input = augmented_prompt
             # else:

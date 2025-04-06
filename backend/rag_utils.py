@@ -1,119 +1,24 @@
+"""
+RAG utilities for mental health chatbot
+"""
 import os
 import uuid
-import math
 import time
-import chromadb
 import google.generativeai as genai
 from datasets import load_dataset
 from dotenv import load_dotenv
-import tiktoken  # Added for token counting
+from db_provider import get_db_provider
 
 # Load environment variables
 load_dotenv()
 # Set up the Google Generative AI API
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=GOOGLE_API_KEY)
+# Use embedding-001 model as it has higher quota limits
+EMBEDDING_MODEL_ID = "models/embedding-001"
 
-EMBEDDING_MODEL_ID = "models/embedding-001"  # or "models/text-embedding-001" for lower quota limits
-MAX_INPUT_TOKENS = 2048
-EMBEDDING_BATCH_SIZE = 100 
-CHROMADB_ADD_BATCH_SIZE = EMBEDDING_BATCH_SIZE
-COLLECTION_NAME = ""
-
-# --- Helper: Token counting using tiktoken ---
-def count_tokens(text, model_name):
-    try:
-        encoding = tiktoken.encoding_for_model(model_name)
-    except Exception:
-        encoding = tiktoken.get_encoding("cl100k_base")
-    tokens = encoding.encode(text)
-    class CountResult:
-        def __init__(self, total_tokens):
-            self.total_tokens = total_tokens
-    return CountResult(len(tokens))
-
-def truncate_text_by_tokens(text, model_name, max_tokens):
-    """
-    Counts tokens using the provided model name and truncates text if it exceeds max_tokens.
-    Returns a tuple: (processed_text, original_token_count, final_token_count)
-    Returns (None, original_token_count, -1) on token counting error.
-    """
-    if not text:
-        return "", 0, 0
-
-    original_token_count = -1
-    final_token_count = -1
-
-    try:
-        # 1. Count initial tokens
-        count_result = count_tokens(text, model_name)
-        original_token_count = count_result.total_tokens
-        final_token_count = original_token_count  # Assume no truncation initially
-
-        # 2. Check if truncation is needed
-        if original_token_count <= max_tokens:
-            return text, original_token_count, final_token_count  # No truncation needed
-
-        print(f"  - Truncation needed: Original tokens {original_token_count} > {max_tokens}")
-
-        # 3. Estimate character cutoff
-        proportion = (max_tokens * 0.95) / original_token_count
-        estimated_char_cutoff = int(len(text) * proportion)
-        processed_text = text[:estimated_char_cutoff]
-
-        # 4. Iteratively refine truncation
-        attempts = 0
-        max_attempts = 10  # Prevent infinite loops
-
-        while attempts < max_attempts:
-            attempts += 1
-            current_token_count = count_tokens(processed_text, model_name).total_tokens
-            final_token_count = current_token_count  # Update final count
-
-            if current_token_count <= max_tokens:
-                print(f"  - Truncation successful: Final tokens {current_token_count} (Attempt {attempts})")
-                return processed_text, original_token_count, final_token_count  # Success
-
-            print(f"  - Truncation refinement needed: Current tokens {current_token_count} (Attempt {attempts})")
-
-            # Trim by a percentage of remaining characters
-            chars_to_remove = max(10, int(len(processed_text) * 0.05))  # Remove at least 10 chars or 5%
-            if len(processed_text) <= chars_to_remove:
-                print(f"  - Warning: Text too short to truncate further ({len(processed_text)} chars).")
-                return processed_text, original_token_count, final_token_count
-
-            processed_text = processed_text[:-chars_to_remove]
-
-        print(f"Error: Failed to truncate text below {max_tokens} tokens after {max_attempts} attempts.")
-        print(f"Original tokens: {original_token_count}, Last attempt tokens: {final_token_count}")
-        return None, original_token_count, final_token_count  # Indicate failure
-    except Exception as e:
-        print(f" Error during token counting/truncation: {e}")
-        return None, original_token_count, -1  # Indicate error state
-
-def get_chroma_client():
-    """Create and return a ChromaDB client with persistent storage"""
-    client = chromadb.PersistentClient("./chroma_db")
-    return client
-
-def get_or_create_collection(client):
-    global COLLECTION_NAME
-    """Get or create the collection for mental health conversations"""
-    try:
-        collection = client.get_collection("mental_health_conversations")
-        print(f"Using existing collection {collection.name}")
-    except Exception:
-        print("Creating new collection")
-        collection = client.create_collection(
-            name="mental_health_conversations",
-            metadata={
-                "hnsw:space": "cosine",
-                "embedding_model": EMBEDDING_MODEL_ID,
-            }
-        )
-        COLLECTION_NAME = collection.name
-        print(f"Created collection: {collection.name} with metadata {collection.metadata}")
-    return collection
+# Initialize the database provider
+db_provider = get_db_provider()
 
 def create_embeddings_batch(texts):
     """Create embedding vector for a text using the Gemini embedding model"""
@@ -137,150 +42,116 @@ def load_and_process_dataset():
     print(f"Dataset loaded. Number of conversations: {len(dataset['train'])}")
     return dataset
 
-def populate_vector_database(dataset, chroma_collection):
-    """Process dataset and store in ChromaDB with embeddings"""
-    if chroma_collection.count() > 0:
-        print(f"Collection already contains {chroma_collection.count()} documents (>= dataset size {len(dataset['train'])}). Skipping population.")
-        return
+def populate_vector_database(dataset):
+    """Process dataset and store with embeddings"""
+    # Initialize the database
+    db_provider.initialize()
+    collection = db_provider.get_collection()
 
-    print(f"\nPopulating vector database with model '{EMBEDDING_MODEL_ID}'...")
-    ids_batch = []
-    texts_to_embed_batch = []
-    metadatas_batch = []
+    # Check if collection already has data
+    if db_provider.collection_count() > 0:
+        print("Collection already populated, skipping...")
+        return collection
 
-    processed_count = 0
-    added_count = 0
-    skipped_count = 0
-    truncated_count = 0
-    start_time = time.time()
+    print("Populating vector database...")
+    # Process each conversation pair
+    ids = []
+    embeddings = []
+    metadatas = []
 
-    target_count = len(dataset['train'])
-    num_batches = math.ceil(target_count / EMBEDDING_BATCH_SIZE)
+    # Only process a subset to start with (reduce quota usage)
+    max_samples = 100  # Limit initial dataset size
 
-    for idx, item in enumerate(dataset['train']):
+    # Rate limiting counters
+    request_count = 0
+    batch_size = 7  # Number of requests before longer pause
+
+    for idx, item in enumerate(dataset['train']):  # Process limited number of samples
         user_input = item['Context']
         expert_response = item['Response']
+
+        # Create combined text for embedding (only user input for efficiency)
+        combined_text = user_input
+
+        # Generate a unique ID
         doc_id = str(uuid.uuid4())
 
-        processed_text, original_tokens, final_tokens = truncate_text_by_tokens(
-            user_input, EMBEDDING_MODEL_ID, MAX_INPUT_TOKENS
-        )
+        # print(f"Generating embedding {idx+1}/{max_samples}...")
 
-        if processed_text is None:
-            print(f"Skipping document index {idx} due to tokenization/truncation error.")
-            skipped_count += 1
-            continue
+        # Rate limiting - short pause between each request
+        if request_count > 0:
+            time.sleep(0.5)  # Half second pause between embeddings
 
-        was_truncated = original_tokens > MAX_INPUT_TOKENS
-        if was_truncated:
-            truncated_count += 1
+        # Additional longer pause after each batch
+        if request_count % batch_size == 0 and request_count > 0:
+            print(f"Taking a longer pause after {batch_size} requests...")
+            time.sleep(3)  # 3 second pause after each batch
 
-        ids_batch.append(doc_id)
-        texts_to_embed_batch.append(processed_text)
-        metadatas_batch.append({
-            "user_input_original": user_input,
-            "expert_response": expert_response,
-            "original_index": idx,
-            "tokens_original": original_tokens,
-            "tokens_final": final_tokens,
-            "was_truncated": was_truncated
+        # Generate embedding with rate limiting
+        embedding = create_embeddings_batch(combined_text)
+        request_count += 1
+
+        # Store data for batch addition
+        ids.append(doc_id)
+        embeddings.append(embedding)
+        metadatas.append({
+            "user_input": user_input,
+            "expert_response": expert_response
         })
 
-        if len(ids_batch) >= EMBEDDING_BATCH_SIZE or idx == target_count - 1:
-            current_batch_num = (processed_count // EMBEDDING_BATCH_SIZE) + 1
-            print(f"\nProcessing Embedding Batch {current_batch_num}/{num_batches} (size {len(ids_batch)})...")
+        # Add in smaller batches to reduce memory usage
+        if len(ids) >= 100 or idx == min(len(dataset['train']) - 1, max_samples - 1):
+            db_provider.add_embeddings(ids, embeddings, metadatas)
 
-            embeddings_batch = create_embeddings_batch(texts_to_embed_batch)
-            valid_items = []
-            for i, emb in enumerate(embeddings_batch):
-                if emb is not None:
-                    valid_items.append((ids_batch[i], emb, texts_to_embed_batch[i], metadatas_batch[i]))
-                else:
-                    print(f"Warning: Failed to generate embedding for item with original index {metadatas_batch[i]['original_index']} (ID: {ids_batch[i]}) in this batch.")
-                    skipped_count += 1
+            # Clear the lists
+            ids = []
+            embeddings = []
+            metadatas = []
 
-            processed_count += len(ids_batch)
+            print(f"Processed {idx + 1} documents")
 
-            if not valid_items:
-                print("Skipping ChromaDB add for this batch as no valid embeddings were generated.")
-            else:
-                final_ids = [item[0] for item in valid_items]
-                final_embeddings = [item[1] for item in valid_items]
-                final_documents = [item[2] for item in valid_items]
-                final_metadatas = [item[3] for item in valid_items]
+    print(f"Database populated with {db_provider.collection_count()} documents")
+    return collection
 
-                print(f"  Adding {len(final_ids)} valid items to ChromaDB...")
-                add_start_time = time.time()
-                try:
-                    chroma_collection.add(
-                        ids=final_ids,
-                        embeddings=final_embeddings,
-                        documents=final_documents,
-                        metadatas=final_metadatas
-                    )
-                    added_count += len(final_ids)
-                    add_end_time = time.time()
-                    print(f"  Batch added in {add_end_time - add_start_time:.2f} seconds.")
-                except Exception as e:
-                    print(f"  ERROR adding batch to ChromaDB: {e}")
-                    skipped_count += len(final_ids)
-            # Clear lists for next batch
-            ids_batch = []
-            texts_to_embed_batch = []
-            metadatas_batch = []
-
-            # Print progress
-            elapsed_time = time.time() - start_time
-            if added_count > 0:
-                time_per_doc = elapsed_time / added_count
-                estimated_total_time = time_per_doc * (target_count - skipped_count)
-                estimated_remaining = estimated_total_time - elapsed_time
-                print(f"  Progress: {processed_count}/{target_count} attempted | {added_count} added | {skipped_count} skipped | {truncated_count} truncated")
-                print(f"  Elapsed: {elapsed_time:.2f}s | Est. Remaining: {max(0, estimated_remaining):.2f}s")
-
-    # --- Final Summary ---
-    end_time = time.time()
-    final_db_count = chroma_collection.count()
-    print("-" * 30)
-    print(f"Database population complete.")
-    print(f"Attempted processing {processed_count} items from dataset.")
-    print(f"Successfully added {added_count} documents to ChromaDB.")
-    print(f"Skipped {skipped_count} documents (due to errors or failed embeddings).")
-    print(f"Truncated {truncated_count} documents due to token limits.")
-    print(f"Total time: {end_time - start_time:.2f} seconds.")
-    if added_count > 0:
-        print(f"Average time per successfully added document: {(end_time - start_time) / added_count:.4f} seconds.")
-    print(f"Final documents in collection '{chroma_collection.name}': {final_db_count}")
-
-def retrieve_relevant_conversations(query, chroma_collection, top_k=3):
+def retrieve_relevant_conversations(query, top_k=3):
     """Retrieve the most relevant conversations for a user query"""
-    # Create embedding for the query (wrap query in a list)
-    query_embeddings = create_embeddings_batch([query])
-    if not query_embeddings or query_embeddings[0] is None:
-        print("Failed to generate embedding for the query.")
+    # Initialize the database if not already initialized
+    db_provider.initialize()
+    collection = db_provider.get_collection()
+
+    try:
+        # Create embedding for the query (with retry logic)
+        max_retries = 3
+        retry_count = 0
+
+        while retry_count < max_retries:
+            try:
+                query_embedding = create_embeddings_batch(query)
+                break
+            except Exception as e:
+                retry_count += 1
+                if "429" in str(e) and retry_count < max_retries:
+                    # If rate limited, wait longer before retry
+                    print(f"Rate limited, pausing for {retry_count * 5} seconds...")
+                    time.sleep(retry_count * 5)
+                else:
+                    if retry_count >= max_retries:
+                        print(f"Failed after {max_retries} retries: {e}")
+                        return []
+                    raise e
+
+        # Perform vector search using the provider
+        return db_provider.search_similar(query_embedding, top_k)
+
+    except Exception as e:
+        print(f"Error in retrieve_relevant_conversations: {e}")
+        # Return empty results if there's an error
         return []
 
-    query_embedding = query_embeddings[0]
-
-    # Perform vector search
-    results = chroma_collection.query(
-        query_embeddings=[query_embedding],
-        n_results=top_k,
-        include=["metadatas"]
-    )
-
-    formatted_results = []
-    if results and 'metadatas' in results and results['metadatas']:
-        for metadata in results['metadatas'][0]:
-            formatted_results.append({
-                "user_input": metadata.get("user_input_original", ""),
-                "expert_response": metadata.get("expert_response", "")
-            })
-
-    return formatted_results
-
 def augment_prompt_with_rag(user_message, relevant_examples):
-    """Augment the specialist prompt with RAG context"""
+    """Augment the prompt with RAG context"""
+
+    # Format the retrieved examples
     examples_text = ""
     for example in relevant_examples:
         examples_text += f"User: {example['user_input']}\nExpert: {example['expert_response']}\n\n"
@@ -295,3 +166,30 @@ Talk to them as they were in the same room with you, and make sure to keep the c
 The user's current message is: {user_message}
 """
     return augmented_prompt
+
+def initialize_rag_database():
+    """Initialize the RAG database with the mental health dataset"""
+    try:
+        dataset = load_and_process_dataset()
+        populate_vector_database(dataset)
+        print("RAG database initialized successfully")
+        return True
+    except Exception as e:
+        print(f"Error initializing RAG database: {e}")
+        print("Continuing without RAG support...")
+        return False
+
+# Legacy functions for compatibility
+def get_chroma_client():
+    """Compatibility function - now handled by db_provider"""
+    # Initialize the DB provider
+    db_provider.initialize()
+    print("Using abstracted database provider instead of direct ChromaDB access")
+    return None
+
+def get_or_create_collection(client):
+    """Compatibility function - now handled by db_provider"""
+    # Get the collection via the provider
+    collection = db_provider.get_collection()
+    print("Using abstracted database provider instead of direct ChromaDB access")
+    return collection

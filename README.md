@@ -36,12 +36,28 @@ This project is a mental health chatbot built using the Gemini API with RAG (Ret
    - Copy the `.env.example` file to `.env` in the backend directory
    - Add your Google Gemini API key
 
-4. **ChromaDB Setup:**
-   - The application will automatically set up a local ChromaDB instance
-   - Data will be stored in the `./chroma_db` directory
-   - The first time you run the application, it will download the mental health conversations dataset and create embeddings
-   - Rate limiting is implemented to avoid Google API quota issues
-   - Only 100 samples are initially processed to ensure quick startup
+4. **Database Setup:**
+   - The application supports two vector database providers:
+     - **ChromaDB** (default, local): Easy setup with no external dependencies
+     - **MongoDB Atlas**: Better scaling and management for production use
+   
+   - **To use ChromaDB (default):**
+     - Set `DB_PROVIDER=chromadb` in your .env file
+     - Data will be stored in the `./chroma_db` directory
+     - No additional setup required
+   
+   - **To use MongoDB Atlas:**
+     - Set `DB_PROVIDER=mongodb` in your .env file
+     - Create a MongoDB Atlas account and cluster
+     - Set up a Vector Search index on the `embedding` field in the `conversations` collection
+     - Name the index `conversation_vector_index`
+     - Use cosine similarity for the search algorithm
+     - Configure dimensions to match the embedding model (typically 768)
+     - Add your MongoDB Atlas connection URI to .env
+   
+   - **Common Features:**
+     - Rate limiting is implemented to avoid Google API quota issues
+     - Only 100 samples are initially processed to ensure quick startup
 
 ## Frontend Setup
 
