@@ -1,0 +1,19 @@
+.letter {
+    animation: fadeIn 8s backwards;
+    animation-iteration-count: infinite;
+}
+
+@keyframes fadeIn {
+    0% {
+        opacity: 0;
+    }
+    40% {
+        opacity: 1;
+    }
+    60% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}

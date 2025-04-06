@@ -1,0 +1,27 @@
+.app-container {
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 0 20px;
+    text-align: center;
+}
+
+.title {
+    width: 100%;
+    text-align: center;
+    padding: 30px 20px;
+    margin-top: 50px;
+    font-family: 'Nunito', sans-serif;
+    font-size: clamp(2rem, 8vw, 5.3rem);
+    box-sizing: border-box;
+    text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
+    color: #6b7280;
+}
+
+.agent-display h1 {
+    font-size: 30px;
+    font-family: Georgia, serif;
+    text-align: center;
+    color: #fdca40;
+    margin: 20px 0;
+}
+
