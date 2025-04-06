@@ -13,18 +13,20 @@ function App() {
     const titleText = Title().props.children;
 
     return (
-        <>
+        <div className="app-container">
             <div className='title'>
                 <AnimatedText text={titleText}/>
             </div>
 
-            <ChatBot />
-
             <div className="agent-display">
                 <h1>Available Agents</h1>
-                <Agent />
+                <Agent/>
             </div>
-        </>
+
+            <ChatBot/>
+
+
+        </div>
 
     );
 }

@@ -1,9 +1,8 @@
-.slider {
-    border: solid 1px;
-    position: relative;
-    width: 100%;
-    max-width: 800px;
-    margin: 70px auto;
+.slide {
+    min-width: 100%; /* show ONE slide at a time */
+    display: flex;
+    justify-content: center;
+    align-items: center;
     overflow: hidden;
 }
 
@@ -11,28 +10,30 @@
     display: flex;
 }
 
-.slide {
-    min-width: 100%;
-    box-sizing: border-box;
-}
-
 .agent-card {
+    width: 50px;
+    height: 50px;
     background-color: white;
     border: 1px solid #ddd;
-    border-radius: 15px;
-    padding: 25px;
-    text-align: center;
+    border-radius: 50%;
     box-shadow: 0 8px 8px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    transition: transform 0.3s ease;
 }
 
 .agent-card h2 {
-    margin: 10px 0;
-    font-size: 22px;
+    margin: 5px 0;
+    font-size: 16px;
     color: #333;
 }
 
 .agent-card p {
+    font-size: 12px;
     color: #666;
-    margin-bottom: 20px;
+    margin: 0;
 }
 

@@ -13,9 +13,16 @@ function ChatBot() {
     const [isLoading, setIsLoading] = React.useState(false);
     const [errorMessage, setErrorMessage] = React.useState("");
 
-    const bottomRef = useRef(null);
+    const containerRef = useRef(null);
+    // Scroll to bottom of chat container & ensure it's visible in the viewport
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+        if (containerRef.current) {
+            // Scroll chat messages inside the container
+            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+
+            // Ensure the whole container is in view on the webpage
+            containerRef.current.scrollIntoView({behavior: "smooth", block: "center"});
+        }
     }, [messages]);
 
     const newMessage = async (e) => {
@@ -60,17 +67,14 @@ function ChatBot() {
         }
     };
 
-    return <main >
+    return <main className={`page ${messages.length === 0 ? "centered" : ""}`}>
         <h1 className="header">Share your thought</h1>
-        <div className="chatbot-container">
+        <div className="chatbot-container" ref={containerRef}>
             {messages.map((msg, index) => (
                 <p key={index} className={`message ${msg.sender}`}>
                     {msg.text}
                 </p>
             ))}
-
-            {/* 👇 This makes it auto-scroll to the newest message */}
-            <div ref={bottomRef} />
 
             {isLoading && <div className="loading">Thinking...</div>}
             {errorMessage && <div className="error">{errorMessage}</div>}
