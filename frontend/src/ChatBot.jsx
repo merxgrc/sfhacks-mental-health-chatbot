@@ -1,6 +1,7 @@
 import "./styling/ChatBot.css";
-import {useState} from "react";
+import {useEffect, useState, useRef} from "react";
 import React from "react";
+
 
 function ChatBot() {
 
@@ -11,6 +12,11 @@ function ChatBot() {
     const [messages, setMessages] = React.useState([]);
     const [isLoading, setIsLoading] = React.useState(false);
     const [errorMessage, setErrorMessage] = React.useState("");
+
+    const bottomRef = useRef(null);
+    useEffect(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages]);
 
     const newMessage = async (e) => {
         e.preventDefault();// prevent form from refreshing the page
@@ -40,8 +46,10 @@ function ChatBot() {
 
             if (response.ok) {
                 const data = await response.json();
-                setMessages([...messages, { sender: 'ai', text: data.response }]);
-            } else {
+                setMessages((prevMessages) => [
+                    ...prevMessages,
+                    { sender: "ai", text: data.response },
+                ]);            } else {
                 const errorData = await response.json();
                 setErrorMessage(`Chatbot error: ${errorData.error || 'Something went wrong'}`);
             }
@@ -60,6 +68,9 @@ function ChatBot() {
                     {msg.text}
                 </p>
             ))}
+
+            {/* 👇 This makes it auto-scroll to the newest message */}
+            <div ref={bottomRef} />
 
             {isLoading && <div className="loading">Thinking...</div>}
             {errorMessage && <div className="error">{errorMessage}</div>}

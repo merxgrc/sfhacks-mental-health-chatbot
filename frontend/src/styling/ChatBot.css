@@ -6,11 +6,13 @@
 .chatbot-container {
     display: flex;
     flex-direction: column;
-    border: solid 1px black;
-    align-items: center;
-    width: 50%;
+    align-items: stretch;
+    width: 700px;
+    height: 500px;
     margin: auto;
     margin-bottom: 50px;
+    overflow-y: auto;
+    padding: 1rem;
 }
 
 .message {
