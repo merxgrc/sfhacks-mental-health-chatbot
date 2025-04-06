@@ -100,7 +100,6 @@ SPECIALIST_PROMPTS = {
 active_chats = {}
 CURRENT_USER_ID = "web_user"
 current_chat_id = None
-current_chat_id = None
 
 def create_chat(chat_id: str, system_prompt: str, model_name: str):
     if chat_id in active_chats:
@@ -122,7 +121,6 @@ def index():
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
-    global current_chat_id, active_chats
     global active_chats, current_chat_id
 
     data = request.get_json()
