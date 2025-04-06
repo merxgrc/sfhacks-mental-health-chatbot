@@ -81,7 +81,7 @@ function ChatBot() {
     };
 
     return <main className={`page ${messages.length === 0 ? "centered" : ""}`}>
-        <h1 className="header">Share your thought</h1>
+        <h1 className="header">What's on your mind?</h1>
         <div className="chatbot-container" ref={containerRef}>
             {messages.map((msg, index) => (
                 <p key={index} className={`message ${msg.sender}`}>
@@ -103,6 +103,8 @@ function ChatBot() {
                 />
                 <input type="submit" value="Send"/>
             </form>
+            <h5>*Disclaimer: MindChat offers a supportive space for brief emotional check-ins, but it’s not a substitute for therapy or professional mental health care.
+                We're here to offer kindness and connection, not replace the care you deserve.</h5>
         </div>
 
 

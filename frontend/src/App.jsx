@@ -3,14 +3,19 @@ import AnimatedText from "./AnimatedText.jsx";
 import Agent from "./Agent.jsx";
 import ChatBot from "./ChatBot.jsx";
 import React from "react";
+import { useEffect } from "react";
 
 function Title() {
     return (
-        <h1>Welcome to Mental Health Chatbot</h1>
+        <h1>Welcome to MindChat</h1>
     )
 }
 function App() {
     const titleText = Title().props.children;
+
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, []);
 
     return (
         <div className="app-container">
@@ -25,10 +30,10 @@ function App() {
 
             <ChatBot/>
 
-
         </div>
 
     );
+
 }
 
 export default App;
