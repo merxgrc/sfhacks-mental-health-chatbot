@@ -12,11 +12,28 @@ function ChatBot() {
     const [messages, setMessages] = React.useState([]);
     const [isLoading, setIsLoading] = React.useState(false);
     const [errorMessage, setErrorMessage] = React.useState("");
+    const [hasSentMessage, setHasSentMessage] = useState(false);
 
-    const bottomRef = useRef(null);
+    const inputRef = useRef(null);
+    const containerRef = useRef(null);
+
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+        if (hasSentMessage) {
+            inputRef.current?.focus();
+        }
     }, [messages]);
+
+
+    // Scroll to bottom of chat container & ensure it's visible in the viewport
+    useEffect(() => {
+        if (hasSentMessage && containerRef.current) {
+            // Scroll chat messages inside the container
+            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+
+            // Scroll the container into view
+            containerRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+    }, [messages, hasSentMessage]);
 
     const newMessage = async (e) => {
         e.preventDefault();// prevent form from refreshing the page
@@ -34,6 +51,7 @@ function ChatBot() {
             sender: "user"
         }];
         setMessages(newMessages);
+        setHasSentMessage(true);
 
         try {
             const response = await fetch('http://localhost:5000/api/chat', {
@@ -49,7 +67,8 @@ function ChatBot() {
                 setMessages((prevMessages) => [
                     ...prevMessages,
                     { sender: "ai", text: data.response },
-                ]);            } else {
+                ]);
+            } else {
                 const errorData = await response.json();
                 setErrorMessage(`Chatbot error: ${errorData.error || 'Something went wrong'}`);
             }
@@ -57,30 +76,30 @@ function ChatBot() {
             setErrorMessage(`Network error: ${error.message}`);
         } finally {
             setIsLoading(false);
+            inputRef.current?.focus(); // 👈 this brings the cursor back
         }
     };
 
-    return <main >
+    return <main className={`page ${messages.length === 0 ? "centered" : ""}`}>
         <h1 className="header">Share your thought</h1>
-        <div className="chatbot-container">
+        <div className="chatbot-container" ref={containerRef}>
             {messages.map((msg, index) => (
                 <p key={index} className={`message ${msg.sender}`}>
                     {msg.text}
                 </p>
             ))}
 
-            {/* 👇 This makes it auto-scroll to the newest message */}
-            <div ref={bottomRef} />
-
             {isLoading && <div className="loading">Thinking...</div>}
             {errorMessage && <div className="error">{errorMessage}</div>}
 
             <form className="input-form" onSubmit={newMessage}>
-                <input type="text" // take in the input and hold it in the newInputValue var
-                       placeholder="Tell me anything"
-                       value={newInputValue}
-                       onChange={(e) => setNewInputValue(e.currentTarget.value)}
-                       disabled={isLoading}
+                <input
+                    ref={inputRef}
+                    type="text" // take in the input and hold it in the newInputValue var
+                    placeholder="Tell me anything"
+                    value={newInputValue}
+                    onChange={(e) => setNewInputValue(e.currentTarget.value)}
+                    disabled={isLoading}
                 />
                 <input type="submit" value="Send"/>
             </form>

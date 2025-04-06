@@ -1,3 +1,19 @@
+/* Wrap the entire page layout */
+.page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    align-items: center;
+    justify-content: flex-start;
+    padding-top: 2rem;
+}
+
+/* Center chatbot vertically if no messages yet */
+.page.centered {
+    justify-content: center;
+}
+
+/* Header style */
 .header {
     display: block;
     text-align: center;
