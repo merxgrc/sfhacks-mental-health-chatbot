@@ -1,7 +1,7 @@
 import './styling/App.css'
 import AnimatedText from "./AnimatedText.jsx";
 import Agent from "./Agent.jsx";
-import Carousel from "./Agent.jsx";
+import ChatBot from "./ChatBot.jsx";
 
 function Title() {
     return (
@@ -36,6 +36,9 @@ function App() {
 
                 <Agent />
             </div>
+
+            <ChatBot />
+
 
         </>
 

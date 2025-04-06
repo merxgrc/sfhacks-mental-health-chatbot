@@ -4,6 +4,6 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
-  background-image: linear-gradient(lightblue, white);
+  background-image: linear-gradient(dodgerblue, white);
 }
 
