@@ -1,8 +1,11 @@
 .title {
-    margin-top: 250px;
+    margin-top: 50px;
+    margin-bottom: 50px;
+    padding: 30px;
     color: black;
     text-align: center;
-    font-size: 100px;
+    font-size: 90px;
+    font-family: "Roboto Light", sans-serif;
 }
 
 .agent-display {
