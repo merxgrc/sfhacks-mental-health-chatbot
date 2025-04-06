@@ -22,7 +22,7 @@ MODEL = "gemini-2.0-flash"
 
 # --- Flask Setup ---
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "http://localhost:5174"}})
 
 # --- Prompts ---
 NURSE_PROMPT = """
