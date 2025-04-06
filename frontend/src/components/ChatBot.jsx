@@ -1,4 +1,4 @@
-import "./styling/ChatBot.css";
+import "../styling/ChatBot.css";
 import {useState} from "react";
 import React from "react";
 

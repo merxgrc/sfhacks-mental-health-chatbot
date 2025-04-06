@@ -148,7 +148,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import "./styling/AgentSlider.css";
+import "../styling/AgentSlider.css";
 
 const AgentSlider = () => {
     const [slideIndex, setSlideIndex] = useState(0);
